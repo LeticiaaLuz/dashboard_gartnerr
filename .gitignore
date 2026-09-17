@@ -1,0 +1,14 @@
+# Ambiente virtual Python
+backend/.venv/
+
+# Arquivos temporários Python
+__pycache__/
+*.py[cod]
+
+# Configurações locais e segredos
+.env
+backend/.env
+
+# Banco SQLite local
+*.db
+*.db-journal
