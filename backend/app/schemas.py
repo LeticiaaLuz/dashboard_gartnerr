@@ -1,5 +1,7 @@
-from pydantic import BaseModel, ConfigDict, Field
 
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
 
 class PlantCreate(BaseModel):
     nickname: str = Field(min_length=2, max_length=100)
@@ -16,5 +18,21 @@ class PlantResponse(BaseModel):
     location: str | None
     automatic_irrigation: bool
     species_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ReadingCreate(BaseModel):
+    soil_moisture: float = Field(ge=0, le=100)
+    temperature: float | None = Field(default=None, ge=-10, le=60)
+    reservoir_empty: bool
+
+
+class ReadingResponse(BaseModel):
+    id: int
+    plant_id: int
+    soil_moisture: float
+    temperature: float | None
+    reservoir_empty: bool
+    recorded_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

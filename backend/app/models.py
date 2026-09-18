@@ -1,4 +1,6 @@
-from sqlalchemy import Boolean, Float, ForeignKey, String, Text
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -28,15 +30,33 @@ class Plant(Base):
     __tablename__ = "plants"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-
-    # Nome dado pelo usuário, por exemplo: "Jiboia da sala"
     nickname: Mapped[str] = mapped_column(String(100))
-
-    # Identificador único configurado no ESP32, por exemplo: "vaso-001"
     device_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
-
     location: Mapped[str | None] = mapped_column(String(100), nullable=True)
     automatic_irrigation: Mapped[bool] = mapped_column(Boolean, default=False)
 
     species_id: Mapped[int] = mapped_column(ForeignKey("species.id"))
     species: Mapped["Species"] = relationship(back_populates="plants")
+
+    readings: Mapped[list["Reading"]] = relationship(
+        back_populates="plant",
+        cascade="all, delete-orphan",
+    )
+
+
+class Reading(Base):
+    __tablename__ = "readings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    plant_id: Mapped[int] = mapped_column(ForeignKey("plants.id"))
+    plant: Mapped["Plant"] = relationship(back_populates="readings")
+
+    soil_moisture: Mapped[float] = mapped_column(Float)
+    temperature: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reservoir_empty: Mapped[bool] = mapped_column(Boolean)
+
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+    )
