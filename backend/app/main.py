@@ -1,10 +1,11 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import Base, engine, get_db
-from app.models import Species
+from app.models import Plant, Species
+from app.schemas import PlantCreate, PlantResponse
 
 
 @asynccontextmanager
@@ -32,3 +33,46 @@ def health_check():
 def list_species(db: Session = Depends(get_db)):
     species = db.query(Species).order_by(Species.name).all()
     return species
+
+
+@app.post(
+    "/plants",
+    response_model=PlantResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_plant(
+    plant_data: PlantCreate,
+    db: Session = Depends(get_db),
+):
+    species = db.get(Species, plant_data.species_id)
+
+    if not species:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Espécie não encontrada.",
+        )
+
+    plant_with_same_device = (
+        db.query(Plant)
+        .filter(Plant.device_id == plant_data.device_id)
+        .first()
+    )
+
+    if plant_with_same_device:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Já existe uma planta usando este device_id.",
+        )
+
+    plant = Plant(**plant_data.model_dump())
+
+    db.add(plant)
+    db.commit()
+    db.refresh(plant)
+
+    return plant
+
+@app.get("/plants", response_model=list[PlantResponse])
+def list_plants(db: Session = Depends(get_db)):
+    plants = db.query(Plant).order_by(Plant.nickname).all()
+    return plants
