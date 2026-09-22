@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import DashboardPlants from './DashboardPlants'
 
 type Tab = 'plants' | 'references'
 
@@ -16,14 +17,6 @@ type ReferencePlant = {
   difficultyClass: string
 }
 
-type UserPlant = {
-  id: number
-  name: string
-  species: string
-  temperature: number
-  soilMoisture: number
-  status: 'Saudável' | 'Atenção'
-}
 
 const referencePlants: ReferencePlant[] = [
   {
@@ -80,40 +73,6 @@ const referencePlants: ReferencePlant[] = [
   },
 ]
 
-const userPlants: UserPlant[] = [
-  {
-    id: 1,
-    name: 'Bela',
-    species: 'Monstera deliciosa',
-    temperature: 22,
-    soilMoisture: 70,
-    status: 'Saudável',
-  },
-  {
-    id: 2,
-    name: 'Lívia',
-    species: 'Ficus lyrata',
-    temperature: 24,
-    soilMoisture: 42,
-    status: 'Atenção',
-  },
-  {
-    id: 3,
-    name: 'Nina',
-    species: 'Dracaena trifasciata',
-    temperature: 23,
-    soilMoisture: 58,
-    status: 'Saudável',
-  },
-  {
-    id: 4,
-    name: 'Soraia',
-    species: 'Epipremnum aureum',
-    temperature: 23,
-    soilMoisture: 76,
-    status: 'Saudável',
-  },
-]
 
 type RegisterPlantFormProps = {
   onCancel: () => void
@@ -269,10 +228,6 @@ function App() {
 
   const [showRegistration, setShowRegistration] = useState(false)
 
-  const attentionCount = userPlants.filter(
-    (plant) => plant.status === 'Atenção',
-  ).length
-
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -304,83 +259,7 @@ function App() {
 
       <main className="page-content">
         {showRegistration ? (  <RegisterPlantForm onCancel={() => setShowRegistration(false)} />) : activeTab === 'plants' ? (
-          <section>
-            <div className="plants-heading">
-              <div>
-                <h1>Suas plantas</h1>
-                <p>Acompanhe a saúde das suas plantas.</p>
-              </div>
-
-              <button className="primary-button"
-              onClick={() => setShowRegistration(true)}>
-                
-                + Cadastrar planta
-              </button>
-            </div>
-
-            <div className="summary-grid">
-              <article className="summary-card">
-                <span>PLANTAS</span>
-                <strong>{userPlants.length}</strong>
-              </article>
-
-              <article className="summary-card attention-summary">
-                <span>ATENÇÃO</span>
-                <strong>{attentionCount}</strong>
-              </article>
-            </div>
-
-            <h2 className="section-title">Suas plantas</h2>
-
-            <div className="plants-grid">
-              {userPlants.map((plant) => (
-                <article
-                  className={
-                    plant.status === 'Atenção'
-                      ? 'plant-card needs-attention'
-                      : 'plant-card'
-                  }
-                  key={plant.id}
-                >
-                  <div className="card-topline">
-                    <div>
-                      <h2>{plant.name}</h2>
-                      <p className="plant-species">{plant.species}</p>
-                    </div>
-
-                    <span
-                      className={
-                        plant.status === 'Atenção'
-                          ? 'health-status attention'
-                          : 'health-status healthy'
-                      }
-                    >
-                      ● {plant.status}
-                    </span>
-                  </div>
-
-                  <div className="plant-metrics">
-                    <span>♨ {plant.temperature}°C</span>
-
-                    <div className="soil-metric">
-                      <span>♢ Solo</span>
-                      <div className="plant-progress-track">
-                        <span
-                          className={
-                            plant.status === 'Atenção'
-                              ? 'plant-progress-fill warning'
-                              : 'plant-progress-fill'
-                          }
-                          style={{ width: `${plant.soilMoisture}%` }}
-                        />
-                      </div>
-                      <strong>{plant.soilMoisture}%</strong>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
+          <DashboardPlants onRegister={() => setShowRegistration(true)} />
         ) : (
           <section>
             <div className="page-heading">

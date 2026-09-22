@@ -54,7 +54,15 @@ class Reading(Base):
 
     soil_moisture: Mapped[float] = mapped_column(Float)
     temperature: Mapped[float | None] = mapped_column(Float, nullable=True)
-    reservoir_empty: Mapped[bool] = mapped_column(Boolean)
+
+    # Variáveis recebidas do MCU
+    light_on: Mapped[bool] = mapped_column(Boolean, default=False)
+    reservoir_level: Mapped[float] = mapped_column(Float, default=0)
+    needs_water: Mapped[bool] = mapped_column(Boolean, default=False)
+    pump_on: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Campo antigo; manteremos temporariamente até definir o limite de alerta.
+    reservoir_empty: Mapped[bool] = mapped_column(Boolean, default=False)
 
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime,
