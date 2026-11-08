@@ -62,11 +62,17 @@ class DashboardPlantResponse(BaseModel):
     scientific_name: str
     minimum_soil_moisture: float
     maximum_soil_moisture: float
+    minimum_temperature: float
+    maximum_temperature: float
 
     soil_moisture: float | None
     temperature: float | None
+    soil_moisture_status: str
+    temperature_status: str
     light_on: bool | None
     reservoir_level: float | None
     needs_water: bool | None
     pump_on: bool | None
+    reservoir_low: bool
+    device_offline: bool
     recorded_at: datetime | None

@@ -11,17 +11,65 @@ type DashboardPlant = {
   scientific_name: string
   minimum_soil_moisture: number
   maximum_soil_moisture: number
+  minimum_temperature: number
+  maximum_temperature: number
   soil_moisture: number | null
   temperature: number | null
+  soil_moisture_status: string
+  temperature_status: string
   light_on: boolean | null
   reservoir_level: number | null
   needs_water: boolean | null
   pump_on: boolean | null
+  reservoir_low: boolean
+  device_offline: boolean
   recorded_at: string | null
 }
 
 type DashboardPlantsProps = {
   onRegister: () => void
+}
+
+function isOutsideReference(status: string) {
+  return status === 'LOW' || status === 'HIGH'
+}
+
+function comparisonLabel(status: string, metric: string) {
+  if (status === 'LOW') return `${metric} baixa`
+  if (status === 'HIGH') return `${metric} alta`
+  if (status === 'IDEAL') return `${metric} ideal`
+  return 'Sem leitura'
+}
+
+function comparisonValueClass(status: string) {
+  if (status === 'IDEAL') return 'metric-value success-value'
+  if (isOutsideReference(status)) return 'metric-value warning-value'
+  return 'metric-value'
+}
+
+function buildRecommendation(plant: DashboardPlant) {
+  if (plant.device_offline) {
+    return 'O dispositivo está há mais de 3 minutos sem enviar leituras. Verifique a alimentação e a conexão do MCU.'
+  }
+  if (plant.reservoir_low) {
+    return 'O reservatório está abaixo de 15%. Reabasteça a água para a próxima rega automática.'
+  }
+  if (plant.soil_moisture_status === 'LOW') {
+    return 'A umidade do solo está abaixo da faixa ideal da espécie. O MCU continua responsável pela rega fixa.'
+  }
+  if (plant.soil_moisture_status === 'HIGH') {
+    return 'A umidade do solo está acima da faixa ideal da espécie. Acompanhe a próxima leitura.'
+  }
+  if (plant.temperature_status === 'LOW') {
+    return 'A temperatura está abaixo da faixa ideal da espécie. Considere ajustar o local da planta.'
+  }
+  if (plant.temperature_status === 'HIGH') {
+    return 'A temperatura está acima da faixa ideal da espécie. Considere um ambiente mais fresco.'
+  }
+  if (plant.needs_water) {
+    return 'O MCU identificou necessidade de água. A rega automática continua sob responsabilidade do dispositivo.'
+  }
+  return 'A temperatura e a umidade estão dentro das faixas ideais da espécie.'
 }
 
 function DashboardPlants({ onRegister }: DashboardPlantsProps) {
@@ -33,6 +81,8 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
   const [showHistory, setShowHistory] = useState(false)
 
   useEffect(() => {
+    let isMounted = true
+
     async function loadPlants() {
       try {
         const response = await fetch(
@@ -44,21 +94,40 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
         }
 
         const data: DashboardPlant[] = await response.json()
-        setPlants(data)
+        if (isMounted) {
+          setPlants(data)
+          setError(null)
+        }
       } catch {
-        setError(
-          'Não foi possível conectar ao servidor. Verifique se o FastAPI está rodando.',
-        )
+        if (isMounted) {
+          setError(
+            'Não foi possível conectar ao servidor. Verifique se o FastAPI está rodando.',
+          )
+        }
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 
     loadPlants()
+
+    const refreshInterval = window.setInterval(loadPlants, 30_000)
+
+    return () => {
+      isMounted = false
+      window.clearInterval(refreshInterval)
+    }
   }, [])
 
   const attentionCount = plants.filter(
-    (plant) => plant.needs_water === true,
+    (plant) =>
+      plant.needs_water === true ||
+      plant.reservoir_low ||
+      plant.device_offline ||
+      isOutsideReference(plant.soil_moisture_status) ||
+      isOutsideReference(plant.temperature_status),
   ).length
 
   if (loading) {
@@ -99,14 +168,30 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
       <div className="plants-grid">
         {plants.map((plant) => {
           const hasReading = plant.recorded_at !== null
-          const needsAttention = plant.needs_water === true
+          const isOffline = plant.device_offline
+          const needsAttention =
+            plant.needs_water === true ||
+            plant.reservoir_low ||
+            isOffline ||
+            isOutsideReference(plant.soil_moisture_status) ||
+            isOutsideReference(plant.temperature_status)
           const soilMoisture = plant.soil_moisture ?? 0
+          const comparisonAlerts = [
+            isOutsideReference(plant.soil_moisture_status)
+              ? comparisonLabel(plant.soil_moisture_status, 'Umidade')
+              : null,
+            isOutsideReference(plant.temperature_status)
+              ? comparisonLabel(plant.temperature_status, 'Temperatura')
+              : null,
+          ].filter(Boolean)
 
           return (
             <button
               type="button"
               className={
-                needsAttention
+                isOffline
+                  ? 'plant-card device-offline'
+                  : needsAttention
                   ? 'plant-card needs-attention'
                   : 'plant-card'
               }
@@ -121,14 +206,18 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
 
                 <span
                   className={
-                    !hasReading
+                    isOffline
+                      ? 'health-status offline'
+                      : !hasReading
                       ? 'health-status unknown'
                       : needsAttention
                         ? 'health-status attention'
                         : 'health-status healthy'
                   }
                 >
-                  {!hasReading
+                  {isOffline
+                    ? '● Dispositivo offline'
+                    : !hasReading
                     ? '● Sem leitura'
                     : needsAttention
                       ? '● Atenção'
@@ -162,6 +251,20 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
                   </strong>
                 </div>
               </div>
+
+              {isOffline ? (
+                <p className="offline-alert">
+                  ● Sem leituras há mais de 3 minutos.
+                </p>
+              ) : plant.reservoir_low ? (
+                <p className="reservoir-alert">
+                  ⚠ Reservatório com pouca água ({plant.reservoir_level}%).
+                </p>
+              ) : comparisonAlerts.length > 0 ? (
+                <p className="comparison-alert">
+                  ⚠ {comparisonAlerts.join(' · ')} fora da faixa ideal.
+                </p>
+              ) : null}
             </button>
           )
         })}
@@ -197,13 +300,23 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
 
             <span
               className={
-                selectedPlant.needs_water
+                selectedPlant.device_offline
+                  ? 'health-status offline'
+                  : selectedPlant.needs_water ||
+                      selectedPlant.reservoir_low ||
+                      isOutsideReference(selectedPlant.soil_moisture_status) ||
+                      isOutsideReference(selectedPlant.temperature_status)
                   ? 'health-status attention'
                   : 'health-status healthy'
               }
             >
               ●{' '}
-              {selectedPlant.needs_water
+              {selectedPlant.device_offline
+                ? 'Status geral: Dispositivo offline'
+                : selectedPlant.needs_water ||
+                    selectedPlant.reservoir_low ||
+                    isOutsideReference(selectedPlant.soil_moisture_status) ||
+                    isOutsideReference(selectedPlant.temperature_status)
                 ? 'Status geral: Atenção'
                 : 'Status geral: Excelente'}
             </span>
@@ -211,25 +324,33 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
             <div className="detail-metrics-grid">
               <article>
                 <span>Temperatura</span>
-                <strong>
+                <strong className={comparisonValueClass(selectedPlant.temperature_status)}>
                   {selectedPlant.temperature === null
                     ? '--'
                     : `${selectedPlant.temperature}°C`}
                 </strong>
+                <small className="metric-reference">
+                  Ideal: {selectedPlant.minimum_temperature}°C –{' '}
+                  {selectedPlant.maximum_temperature}°C
+                </small>
               </article>
 
               <article>
                 <span>Umidade</span>
-                <strong>
+                <strong className={comparisonValueClass(selectedPlant.soil_moisture_status)}>
                   {selectedPlant.soil_moisture === null
                     ? '--'
                     : `${selectedPlant.soil_moisture}%`}
                 </strong>
+                <small className="metric-reference">
+                  Ideal: {selectedPlant.minimum_soil_moisture}% –{' '}
+                  {selectedPlant.maximum_soil_moisture}%
+                </small>
               </article>
 
               <article>
                 <span>Luminosidade</span>
-                <strong>
+                <strong className="metric-value success-value">
                   {selectedPlant.light_on === null
                     ? 'Sem leitura'
                     : selectedPlant.light_on
@@ -240,7 +361,13 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
 
               <article>
                 <span>Reservatório</span>
-                <strong>
+                <strong
+                  className={
+                    selectedPlant.reservoir_low
+                      ? 'metric-value warning-value'
+                      : 'metric-value'
+                  }
+                >
                   {selectedPlant.reservoir_level === null
                     ? '--'
                     : `${selectedPlant.reservoir_level}%`}
@@ -249,7 +376,13 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
 
               <article>
                 <span>Precisa regar</span>
-                <strong>
+                <strong
+                  className={
+                    selectedPlant.needs_water
+                      ? 'metric-value warning-value'
+                      : 'metric-value success-value'
+                  }
+                >
                   {selectedPlant.needs_water === null
                     ? 'Sem leitura'
                     : selectedPlant.needs_water
@@ -260,7 +393,13 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
 
               <article>
                 <span>Bomba ligada</span>
-                <strong>
+                <strong
+                  className={
+                    selectedPlant.pump_on
+                      ? 'metric-value active-pump-value'
+                      : 'metric-value success-value'
+                  }
+                >
                   {selectedPlant.pump_on === null
                     ? 'Sem leitura'
                     : selectedPlant.pump_on
@@ -272,11 +411,7 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
 
             <div className="recommendation">
               <strong>Recomendação</strong>
-              <p>
-                {selectedPlant.needs_water
-                  ? 'O MCU identificou que a planta precisa de água. A rega automática será decidida pelo próprio dispositivo.'
-                  : 'As condições atuais estão adequadas. Continue acompanhando as próximas leituras.'}
-              </p>
+              <p>{buildRecommendation(selectedPlant)}</p>
             </div>
 
             <button

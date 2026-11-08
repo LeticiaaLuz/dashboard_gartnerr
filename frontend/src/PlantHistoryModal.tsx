@@ -11,6 +11,11 @@ type HistoryReading = {
   recorded_at: string
 }
 
+type ChartPoint = {
+  label: string
+  value: number
+}
+
 type PlantHistoryModalProps = {
   plantId: number
   plantName: string
@@ -20,45 +25,60 @@ type PlantHistoryModalProps = {
 type ChartProps = {
   title: string
   unit: string
-  values: number[]
+  points: ChartPoint[]
   color: string
 }
 
-function HistoryChart({ title, unit, values, color }: ChartProps) {
-  if (values.length === 0) {
+function formatValue(value: number, unit: string) {
+  const formatted = Number.isInteger(value) ? value : value.toFixed(1)
+  return `${formatted}${unit}`
+}
+
+function HistoryChart({ title, unit, points, color }: ChartProps) {
+  if (points.length === 0) {
     return null
   }
 
-  const width = 420
-  const height = 120
-  const padding = 12
+  const width = 520
+  const height = 170
+  const paddingX = 28
+  const paddingY = 20
+  const values = points.map((point) => point.value)
   const minValue = Math.min(...values)
   const maxValue = Math.max(...values)
   const range = maxValue - minValue || 1
 
-  const points = values
-    .map((value, index) => {
-      const x =
-        padding + (index * (width - padding * 2)) / Math.max(values.length - 1, 1)
-      const y =
-        height -
-        padding -
-        ((value - minValue) / range) * (height - padding * 2)
+  const chartPoints = points.map((point, index) => {
+    const x =
+      paddingX + (index * (width - paddingX * 2)) / Math.max(points.length - 1, 1)
+    const y =
+      height -
+      paddingY -
+      ((point.value - minValue) / range) * (height - paddingY * 2)
 
-      return `${x},${y}`
-    })
-    .join(' ')
+    return { x, y, ...point }
+  })
 
-  const latestValue = values[values.length - 1]
+  const linePoints = chartPoints.map((point) => `${point.x},${point.y}`).join(' ')
+  const baseline = height - paddingY
+  const areaPoints = [
+    `${chartPoints[0].x},${baseline}`,
+    linePoints,
+    `${chartPoints[chartPoints.length - 1].x},${baseline}`,
+  ].join(' ')
+  const latestPoint = points[points.length - 1]
+  const gradientId = title.toLowerCase().replaceAll(' ', '-')
 
   return (
     <section className="history-chart">
       <div className="history-chart-heading">
-        <span>{title}</span>
-        <strong>
-          {latestValue}
-          {unit}
-        </strong>
+        <div>
+          <span>{title}</span>
+          <small>
+            Mín. {formatValue(minValue, unit)} · Máx. {formatValue(maxValue, unit)}
+          </small>
+        </div>
+        <strong>{formatValue(latestPoint.value, unit)}</strong>
       </div>
 
       <svg
@@ -66,15 +86,53 @@ function HistoryChart({ title, unit, values, color }: ChartProps) {
         role="img"
         aria-label={`Histórico de ${title}`}
       >
+        <defs>
+          <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {[0.25, 0.5, 0.75].map((position) => (
+          <line
+            key={position}
+            x1={paddingX}
+            x2={width - paddingX}
+            y1={height * position}
+            y2={height * position}
+            stroke="#e6edf4"
+            strokeWidth="1"
+          />
+        ))}
+
+        <polygon fill={`url(#${gradientId})`} points={areaPoints} />
         <polyline
           fill="none"
-          points={points}
+          points={linePoints}
           stroke={color}
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="4"
         />
+
+        {chartPoints.map((point, index) => (
+          <circle
+            key={`${point.label}-${index}`}
+            cx={point.x}
+            cy={point.y}
+            fill="#ffffff"
+            r={index === chartPoints.length - 1 ? 5 : 3.5}
+            stroke={color}
+            strokeWidth="3"
+          />
+        ))}
       </svg>
+
+      <div className="history-chart-labels">
+        {chartPoints.map((point, index) => (
+          <span key={`${point.label}-${index}`}>{point.label}</span>
+        ))}
+      </div>
     </section>
   )
 }
@@ -111,15 +169,33 @@ function PlantHistoryModal({
     loadHistory()
   }, [plantId])
 
-  const temperatures = readings
-    .map((reading) => reading.temperature)
-    .filter((temperature): temperature is number => temperature !== null)
+  const chartReadings = readings.slice(-30)
+  const makePoints = (getValue: (reading: HistoryReading) => number | null) =>
+    chartReadings.flatMap((reading) => {
+      const value = getValue(reading)
 
-  const moistures = readings.map((reading) => reading.soil_moisture)
-  const reservoirs = readings.map((reading) => reading.reservoir_level)
+      if (value === null) {
+        return []
+      }
+
+      return [
+        {
+          value,
+          label: new Date(reading.recorded_at).toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          }),
+        },
+      ]
+    })
+
+  const temperatures = makePoints((reading) => reading.temperature)
+  const moistures = makePoints((reading) => reading.soil_moisture)
+  const reservoirs = makePoints((reading) => reading.reservoir_level)
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop history-backdrop" onMouseDown={onClose}>
       <section
         className="history-modal"
         role="dialog"
@@ -139,7 +215,6 @@ function PlantHistoryModal({
         <p className="scientific-name">{plantName}</p>
 
         {loading && <p className="dashboard-message">Carregando histórico...</p>}
-
         {error && <p className="dashboard-message error-message">{error}</p>}
 
         {!loading && !error && readings.length === 0 && (
@@ -149,30 +224,36 @@ function PlantHistoryModal({
         )}
 
         {!loading && !error && readings.length > 0 && (
-          <div className="history-charts">
-            {temperatures.length > 0 && (
+          <>
+            <p className="history-caption">
+              Exibindo as últimas {chartReadings.length} leituras.
+            </p>
+
+            <div className="history-charts">
+              {temperatures.length > 0 && (
+                <HistoryChart
+                  title="Temperatura"
+                  unit="°C"
+                  points={temperatures}
+                  color="#e07a5f"
+                />
+              )}
+
               <HistoryChart
-                title="Temperatura"
-                unit="°C"
-                values={temperatures}
+                title="Umidade do solo"
+                unit="%"
+                points={moistures}
                 color="#2e76b8"
               />
-            )}
 
-            <HistoryChart
-              title="Umidade do solo"
-              unit="%"
-              values={moistures}
-              color="#2e76b8"
-            />
-
-            <HistoryChart
-              title="Reservatório"
-              unit="%"
-              values={reservoirs}
-              color="#2e76b8"
-            />
-          </div>
+              <HistoryChart
+                title="Reservatório"
+                unit="%"
+                points={reservoirs}
+                color="#2e9f77"
+              />
+            </div>
+          </>
         )}
       </section>
     </div>

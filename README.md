@@ -9,6 +9,8 @@ Projeto acadêmico de Engenharia para monitorar plantas em vasos conectados. O s
 - Catálogo de plantas de referência: Jiboia, Antúrio, Zamioculca e Dinheiro-em-penca.
 - Cadastro de plantas associadas a um `device_id` de vaso.
 - Registro de leituras de temperatura, umidade do solo, luz, reservatório, necessidade de água e bomba.
+- Alerta visual no dashboard quando o reservatório estiver em 15% ou menos.
+- Alerta visual de dispositivo offline após três minutos sem uma nova leitura.
 - Dashboard com plantas reais registradas no banco.
 - Modal de detalhes da planta e modal de histórico com gráficos simples.
 - Banco SQLite local, sem necessidade de instalar um servidor de banco de dados.
@@ -222,6 +224,8 @@ A integração MQTT ainda está em definição. As decisões já tomadas são:
 - O usuário não poderá acionar a bomba pelo dashboard.
 - A umidade do solo será convertida para uma escala de 0% a 100%, com calibração em solo seco e úmido.
 - O reservatório será enviado como porcentagem.
+- O dashboard alerta quando o reservatório estiver em 15% ou menos, sem enviar comandos ao MCU.
+- O dashboard marca o dispositivo como offline após três minutos sem leituras e remove o aviso assim que uma nova leitura for recebida.
 - O MCU enviará os estados de temperatura, umidade, luz, reservatório, necessidade de água e bomba.
 
 Antes da implementação MQTT, ainda é necessário definir:
@@ -229,9 +233,8 @@ Antes da implementação MQTT, ainda é necessário definir:
 1. O `device_id` definitivo de cada vaso;
 2. Os tópicos MQTT e se as variáveis serão publicadas em uma mensagem JSON única ou em tópicos separados;
 3. Como o MCU recebe o limite de umidade da espécie;
-4. O limite mínimo de reservatório que gera alerta;
-5. O tempo máximo de segurança da bomba ligada;
-6. A estratégia de publicação e persistência das leituras.
+4. O tempo máximo de segurança da bomba ligada;
+5. A estratégia de publicação e persistência das leituras.
 
 > O MCU pode ler sensores a cada 0,2 segundo, mas não é recomendado gravar todas essas leituras no SQLite. Isso produziria aproximadamente 432 mil registros por dia para cada vaso. A recomendação é publicar/salvar leituras periódicas, por exemplo a cada 30 ou 60 segundos, e enviar imediatamente eventos relevantes como mudança em `needs_water` ou `pump_on`.
 

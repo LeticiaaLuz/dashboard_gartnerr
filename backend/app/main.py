@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
@@ -14,6 +15,23 @@ from app.schemas import (
     DashboardPlantResponse,
 )
 from fastapi.middleware.cors import CORSMiddleware
+
+RESERVOIR_ALERT_LEVEL = 15
+DEVICE_OFFLINE_AFTER = timedelta(minutes=3)
+
+
+def compare_with_reference(
+    value: float | None,
+    minimum: float,
+    maximum: float,
+) -> str:
+    if value is None:
+        return "NO_READING"
+    if value < minimum:
+        return "LOW"
+    if value > maximum:
+        return "HIGH"
+    return "IDEAL"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -156,6 +174,7 @@ def list_dashboard_plants(
 ):
     plants = db.query(Plant).order_by(Plant.nickname).all()
     dashboard_plants = []
+    current_time = datetime.utcnow()
 
     for plant in plants:
         latest_reading = (
@@ -176,6 +195,8 @@ def list_dashboard_plants(
                 scientific_name=plant.species.scientific_name,
                 minimum_soil_moisture=plant.species.minimum_soil_moisture,
                 maximum_soil_moisture=plant.species.maximum_soil_moisture,
+                minimum_temperature=plant.species.minimum_temperature,
+                maximum_temperature=plant.species.maximum_temperature,
                 soil_moisture=(
                     latest_reading.soil_moisture
                     if latest_reading
@@ -185,6 +206,16 @@ def list_dashboard_plants(
                     latest_reading.temperature
                     if latest_reading
                     else None
+                ),
+                soil_moisture_status=compare_with_reference(
+                    latest_reading.soil_moisture if latest_reading else None,
+                    plant.species.minimum_soil_moisture,
+                    plant.species.maximum_soil_moisture,
+                ),
+                temperature_status=compare_with_reference(
+                    latest_reading.temperature if latest_reading else None,
+                    plant.species.minimum_temperature,
+                    plant.species.maximum_temperature,
                 ),
                 light_on=latest_reading.light_on if latest_reading else None,
                 reservoir_level=(
@@ -198,6 +229,15 @@ def list_dashboard_plants(
                     else None
                 ),
                 pump_on=latest_reading.pump_on if latest_reading else None,
+                reservoir_low=(
+                    latest_reading is not None
+                    and latest_reading.reservoir_level <= RESERVOIR_ALERT_LEVEL
+                ),
+                device_offline=(
+                    latest_reading is not None
+                    and current_time - latest_reading.recorded_at
+                    > DEVICE_OFFLINE_AFTER
+                ),
                 recorded_at=(
                     latest_reading.recorded_at
                     if latest_reading

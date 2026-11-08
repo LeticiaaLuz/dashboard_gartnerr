@@ -3,6 +3,26 @@ import DashboardPlants from './DashboardPlants'
 
 type Tab = 'plants' | 'references'
 
+function GartnerLogo() {
+  return (
+    <svg
+      className="brand-logo"
+      viewBox="0 0 64 64"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path d="M29 42V20" />
+      <path d="M29 29C19 26 17 18 18 14C25 17 29 22 29 29Z" />
+      <path d="M30 22C31 12 38 8 45 8C44 16 39 22 30 22Z" />
+      <path d="M31 33C39 25 48 26 53 29C49 37 41 39 31 36" />
+      <path d="M25 36C17 35 12 31 10 25C18 25 24 29 25 36Z" />
+      <path d="M13 42H51V49H13V42Z" />
+      <path d="M18 49H46V54H18V49Z" />
+      <path d="M25 54H39V59H25V54Z" />
+    </svg>
+  )
+}
+
 type ReferencePlant = {
   name: string
   scientificName: string
@@ -232,7 +252,7 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <a className="brand" href="/">
-          <span className="brand-icon">♧</span>
+          <GartnerLogo />
           Gärtner
         </a>
 
