@@ -19,7 +19,7 @@ species_data = [
         "name": "Antúrio",
         "scientific_name": "Anthurium andraeanum",
         "origin": "América do Sul",
-        "minimum_soil_moisture": 60,
+        "minimum_soil_moisture": 40,
         "maximum_soil_moisture": 80,
         "minimum_temperature": 18,
         "maximum_temperature": 28,

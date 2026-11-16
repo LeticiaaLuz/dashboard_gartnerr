@@ -43,7 +43,7 @@ const referencePlants: ReferencePlant[] = [
     name: 'Antúrio',
     scientificName: 'Anthurium andraeanum',
     origin: 'América do Sul',
-    moistureRange: '60% - 80%',
+    moistureRange: '40% - 80%',
     moistureProgress: 70,
     temperatureRange: '18°C - 28°C',
     luminosity: 'Luz Indireta Abundante',
