@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import DashboardPlants from './DashboardPlants'
 
 type Tab = 'plants' | 'references'
@@ -40,19 +40,6 @@ type ReferencePlant = {
 
 const referencePlants: ReferencePlant[] = [
   {
-    name: 'Antúrio',
-    scientificName: 'Anthurium andraeanum',
-    origin: 'América do Sul',
-    moistureRange: '40% - 80%',
-    moistureProgress: 70,
-    temperatureRange: '18°C - 28°C',
-    luminosity: 'Luz Indireta Abundante',
-    wateringFrequency: '2 a 3 vezes por semana',
-    careTip: 'Mantenha o solo levemente úmido, sem encharcar.',
-    difficulty: 'Médio',
-    difficultyClass: 'medium',
-  },
-  {
     name: 'Dinheiro-em-penca',
     scientificName: 'Callisia repens',
     origin: 'Américas',
@@ -82,12 +69,12 @@ const referencePlants: ReferencePlant[] = [
     name: 'Zamioculca',
     scientificName: 'Zamioculcas zamiifolia',
     origin: 'África',
-    moistureRange: '20% - 40%',
-    moistureProgress: 30,
-    temperatureRange: '18°C - 32°C',
-    luminosity: 'Sombra ou Meia-Sombra',
-    wateringFrequency: 'A cada 10 a 15 dias',
-    careTip: 'Evite regas frequentes; ela tolera bem períodos secos.',
+    moistureRange: '40% - 70%',
+    moistureProgress: 55,
+    temperatureRange: '18°C - 30°C',
+    luminosity: 'Baixa luminosidade',
+    wateringFrequency: 'Regue somente quando o solo estiver seco',
+    careTip: 'Evite o excesso de água e mantenha em vaso com boa drenagem.',
     difficulty: 'Muito fácil',
     difficultyClass: 'very-easy',
   },
@@ -96,12 +83,39 @@ const referencePlants: ReferencePlant[] = [
 
 type RegisterPlantFormProps = {
   onCancel: () => void
+  plantToEdit?: EditablePlant | null
 }
 
-function RegisterPlantForm({ onCancel }: RegisterPlantFormProps) {
+type EditablePlant = {
+  id: number
+  nickname: string
+  device_id: string
+  location: string | null
+  species_id: number
+  species_name: string
+}
+
+function RegisterPlantForm({ onCancel, plantToEdit }: RegisterPlantFormProps) {
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [species, setSpecies] = useState<Array<{ id: number; name: string }>>([])
+
+  useEffect(() => {
+    async function loadSpecies() {
+      try {
+        const response = await fetch('http://127.0.0.1:8000/species')
+        if (!response.ok) {
+          throw new Error('Não foi possível carregar as espécies.')
+        }
+        setSpecies(await response.json())
+      } catch {
+        setError('Não foi possível carregar as espécies de referência.')
+      }
+    }
+
+    loadSpecies()
+  }, [])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -110,15 +124,12 @@ function RegisterPlantForm({ onCancel }: RegisterPlantFormProps) {
 
     const formData = new FormData(event.currentTarget)
 
-    const speciesIds: Record<string, number> = {
-      Jiboia: 1,
-      Antúrio: 2,
-      Zamioculca: 3,
-      'Dinheiro-em-penca': 4,
-    }
-
-    const response = await fetch('http://127.0.0.1:8000/plants', {
-      method: 'POST',
+    const response = await fetch(
+      plantToEdit
+        ? `http://127.0.0.1:8000/plants/${plantToEdit.id}`
+        : 'http://127.0.0.1:8000/plants',
+      {
+      method: plantToEdit ? 'PUT' : 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -126,12 +137,10 @@ function RegisterPlantForm({ onCancel }: RegisterPlantFormProps) {
         nickname: formData.get('nickname'),
         device_id: formData.get('deviceId'),
         location: formData.get('location') || null,
-        automatic_irrigation: Boolean(
-          formData.get('automaticIrrigation'),
-        ),
-        species_id: speciesIds[String(formData.get('species'))],
+        species_id: Number(formData.get('speciesId')),
       }),
-    })
+      },
+    )
 
     setIsSubmitting(false)
 
@@ -151,7 +160,7 @@ function RegisterPlantForm({ onCancel }: RegisterPlantFormProps) {
   if (submitted) {
     return (
       <section className="registration-panel registration-success">
-        <h1>Planta cadastrada!</h1>
+        <h1>{plantToEdit ? 'Planta atualizada!' : 'Planta cadastrada!'}</h1>
         <p>Os dados foram salvos no banco de dados do sistema.</p>
 
         <button className="primary-button" onClick={onCancel}>
@@ -168,7 +177,7 @@ function RegisterPlantForm({ onCancel }: RegisterPlantFormProps) {
       </button>
 
       <div className="registration-heading">
-        <h1>Cadastrar planta</h1>
+        <h1>{plantToEdit ? 'Editar planta' : 'Cadastrar planta'}</h1>
         <p>Informe os dados da planta e do dispositivo conectado a ela.</p>
       </div>
 
@@ -180,18 +189,24 @@ function RegisterPlantForm({ onCancel }: RegisterPlantFormProps) {
             placeholder="Ex.: Jiboia da sala"
             minLength={2}
             required
+            defaultValue={plantToEdit?.nickname}
           />
         </label>
 
         <label>
           Espécie de referência
-          <select name="species" required defaultValue="">
+          <select
+            name="speciesId"
+            required
+            defaultValue={plantToEdit?.species_id ?? ''}
+            disabled={species.length === 0}
+          >
             <option value="" disabled>
-              Selecione uma espécie
+              {species.length === 0 ? 'Carregando espécies...' : 'Selecione uma espécie'}
             </option>
 
-            {referencePlants.map((plant) => (
-              <option key={plant.name} value={plant.name}>
+            {species.map((plant) => (
+              <option key={plant.id} value={plant.id}>
                 {plant.name}
               </option>
             ))}
@@ -200,7 +215,11 @@ function RegisterPlantForm({ onCancel }: RegisterPlantFormProps) {
 
         <label>
           Localização
-          <input name="location" placeholder="Ex.: Sala" />
+          <input
+            name="location"
+            placeholder="Ex.: Sala"
+            defaultValue={plantToEdit?.location ?? ''}
+          />
         </label>
 
         <label>
@@ -210,19 +229,9 @@ function RegisterPlantForm({ onCancel }: RegisterPlantFormProps) {
             placeholder="Ex.: vaso-001"
             minLength={3}
             required
+            defaultValue={plantToEdit?.device_id}
           />
           <small>Use o mesmo identificador configurado no ESP32.</small>
-        </label>
-
-        <label className="toggle-field">
-          <input name="automaticIrrigation" type="checkbox" />
-          <span>
-            <strong>Ativar rega automática</strong>
-            <small>
-              O sistema poderá solicitar rega quando o solo estiver abaixo do
-              limite ideal.
-            </small>
-          </span>
         </label>
 
         {error && <p className="form-error">{error}</p>}
@@ -233,7 +242,13 @@ function RegisterPlantForm({ onCancel }: RegisterPlantFormProps) {
           </button>
 
           <button className="primary-button" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Cadastrando...' : 'Cadastrar planta'}
+            {isSubmitting
+              ? plantToEdit
+                ? 'Salvando...'
+                : 'Cadastrando...'
+              : plantToEdit
+                ? 'Salvar alterações'
+                : 'Cadastrar planta'}
           </button>
         </div>
       </form>
@@ -247,6 +262,7 @@ function App() {
     useState<ReferencePlant | null>(null)
 
   const [showRegistration, setShowRegistration] = useState(false)
+  const [plantToEdit, setPlantToEdit] = useState<EditablePlant | null>(null)
 
   return (
     <div className="app-shell">
@@ -260,7 +276,8 @@ function App() {
           <button
             className={activeTab === 'plants' ? 'tab active' : 'tab'}
             onClick={() => {  setActiveTab('plants') 
-               setShowRegistration(false)}}
+               setShowRegistration(false)
+               setPlantToEdit(null)}}
           >
             Minhas plantas
           </button>
@@ -268,7 +285,8 @@ function App() {
           <button
             className={activeTab === 'references' ? 'tab active' : 'tab'}
             onClick={() => {setActiveTab('references')
-                setShowRegistration(false)}}
+                setShowRegistration(false)
+                setPlantToEdit(null)}}
           >
             Referências
           </button>
@@ -278,8 +296,22 @@ function App() {
       </header>
 
       <main className="page-content">
-        {showRegistration ? (  <RegisterPlantForm onCancel={() => setShowRegistration(false)} />) : activeTab === 'plants' ? (
-          <DashboardPlants onRegister={() => setShowRegistration(true)} />
+        {showRegistration ? (
+          <RegisterPlantForm
+            plantToEdit={plantToEdit}
+            onCancel={() => {
+              setShowRegistration(false)
+              setPlantToEdit(null)
+            }}
+          />
+        ) : activeTab === 'plants' ? (
+          <DashboardPlants
+            onRegister={() => setShowRegistration(true)}
+            onEdit={(plant) => {
+              setPlantToEdit(plant)
+              setShowRegistration(true)
+            }}
+          />
         ) : (
           <section>
             <div className="page-heading">

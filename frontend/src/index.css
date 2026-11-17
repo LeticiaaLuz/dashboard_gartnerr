@@ -501,6 +501,33 @@ h1 {
   font-size: 0.85rem;
 }
 
+.plant-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.plant-detail-actions > button {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.danger-button {
+  border: 1px solid #d92d39;
+  border-radius: 9px;
+  padding: 10px 14px;
+  background: #fff;
+  color: #c73d4a;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.danger-button:hover {
+  background: #fff0f1;
+}
+
 .health-status {
   border-radius: 999px;
   padding: 5px 10px;
@@ -849,8 +876,6 @@ h1 {
 }
 
 .history-button {
-  display: block;
-  margin: 20px auto 0;
   padding: 11px 17px;
   border: 1px solid #5ca685;
   border-radius: 10px;
@@ -943,29 +968,16 @@ h1 {
   display: block;
   margin-top: 12px;
   border-radius: 9px;
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      #f1f4f7 0,
-      #f1f4f7 1px,
-      transparent 1px,
-      transparent 25%
-    );
 }
 
-.history-chart-labels {
-  display: flex;
-  justify-content: space-between;
-  gap: 6px;
-  margin-top: 6px;
-  overflow: hidden;
-  color: #8a98ac;
+.history-axis-label {
+  fill: #8a98ac;
+  font-size: 9px;
+}
+
+.history-time-label {
+  fill: #8a98ac;
   font-size: 0.68rem;
-}
-
-.history-chart-labels span {
-  min-width: 34px;
-  text-align: center;
 }
 
 @media (max-width: 480px) {

@@ -7,6 +7,7 @@ type DashboardPlant = {
   device_id: string
   location: string | null
   automatic_irrigation: boolean
+  species_id: number
   species_name: string
   scientific_name: string
   minimum_soil_moisture: number
@@ -28,6 +29,7 @@ type DashboardPlant = {
 
 type DashboardPlantsProps = {
   onRegister: () => void
+  onEdit: (plant: DashboardPlant) => void
 }
 
 function isOutsideReference(status: string) {
@@ -72,13 +74,37 @@ function buildRecommendation(plant: DashboardPlant) {
   return 'A temperatura e a umidade estão dentro das faixas ideais da espécie.'
 }
 
-function DashboardPlants({ onRegister }: DashboardPlantsProps) {
+function DashboardPlants({ onRegister, onEdit }: DashboardPlantsProps) {
   const [plants, setPlants] = useState<DashboardPlant[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedPlant, setSelectedPlant] =
     useState<DashboardPlant | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+
+  async function handleDelete(plant: DashboardPlant) {
+    if (!window.confirm(`Excluir ${plant.nickname}? Esta ação não pode ser desfeita.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/plants/${plant.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Não foi possível excluir a planta.')
+      }
+
+      setPlants((currentPlants) =>
+        currentPlants.filter((currentPlant) => currentPlant.id !== plant.id),
+      )
+      setSelectedPlant(null)
+      setShowHistory(false)
+    } catch {
+      setError('Não foi possível excluir a planta. Tente novamente.')
+    }
+  }
 
   useEffect(() => {
     let isMounted = true
@@ -414,13 +440,29 @@ function DashboardPlants({ onRegister }: DashboardPlantsProps) {
               <p>{buildRecommendation(selectedPlant)}</p>
             </div>
 
-            <button
+            <div className="plant-detail-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => onEdit(selectedPlant)}
+              >
+                Editar planta
+              </button>
+              <button
+                className="danger-button"
+                type="button"
+                onClick={() => handleDelete(selectedPlant)}
+              >
+                Excluir planta
+              </button>
+              <button
                 className="history-button"
                 type="button"
                 onClick={() => setShowHistory(true)}
-                >
+              >
                 Consultar histórico
-            </button>
+              </button>
+            </div>
           </section>
         </div>
       )}

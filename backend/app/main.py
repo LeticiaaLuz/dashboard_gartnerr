@@ -9,6 +9,7 @@ from app.database import Base, engine, get_db
 from app.models import Plant, Reading, Species
 from app.schemas import (
     PlantCreate,
+    PlantUpdate,
     PlantResponse,
     ReadingCreate,
     ReadingResponse,
@@ -111,6 +112,49 @@ def list_plants(db: Session = Depends(get_db)):
     return plants
 
 
+@app.put("/plants/{plant_id}", response_model=PlantResponse)
+def update_plant(
+    plant_id: int,
+    plant_data: PlantUpdate,
+    db: Session = Depends(get_db),
+):
+    plant = db.get(Plant, plant_id)
+    if not plant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Planta não encontrada.")
+
+    species = db.get(Species, plant_data.species_id)
+    if not species:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Espécie não encontrada.")
+
+    duplicate_device = (
+        db.query(Plant)
+        .filter(Plant.device_id == plant_data.device_id, Plant.id != plant_id)
+        .first()
+    )
+    if duplicate_device:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Já existe uma planta usando este device_id.",
+        )
+
+    for field, value in plant_data.model_dump().items():
+        setattr(plant, field, value)
+
+    db.commit()
+    db.refresh(plant)
+    return plant
+
+
+@app.delete("/plants/{plant_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_plant(plant_id: int, db: Session = Depends(get_db)):
+    plant = db.get(Plant, plant_id)
+    if not plant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Planta não encontrada.")
+
+    db.delete(plant)
+    db.commit()
+
+
 @app.post(
     "/plants/{plant_id}/readings",
     response_model=ReadingResponse,
@@ -191,6 +235,7 @@ def list_dashboard_plants(
                 device_id=plant.device_id,
                 location=plant.location,
                 automatic_irrigation=plant.automatic_irrigation,
+                species_id=plant.species_id,
                 species_name=plant.species.name,
                 scientific_name=plant.species.scientific_name,
                 minimum_soil_moisture=plant.species.minimum_soil_moisture,

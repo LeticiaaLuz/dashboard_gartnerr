@@ -1,5 +1,5 @@
 from app.database import SessionLocal
-from app.models import Species
+from app.models import Plant, Species
 
 
 species_data = [
@@ -16,28 +16,16 @@ species_data = [
         "care_tip": None,
     },
     {
-        "name": "Antúrio",
-        "scientific_name": "Anthurium andraeanum",
-        "origin": "América do Sul",
-        "minimum_soil_moisture": 40,
-        "maximum_soil_moisture": 80,
-        "minimum_temperature": 18,
-        "maximum_temperature": 28,
-        "luminosity": "Luz Indireta Abundante",
-        "watering_frequency": "2 a 3 vezes por semana",
-        "care_tip": None,
-    },
-    {
         "name": "Zamioculca",
         "scientific_name": "Zamioculcas zamiifolia",
         "origin": "África",
-        "minimum_soil_moisture": 20,
-        "maximum_soil_moisture": 40,
+        "minimum_soil_moisture": 40,
+        "maximum_soil_moisture": 70,
         "minimum_temperature": 18,
-        "maximum_temperature": 32,
-        "luminosity": "Sombra ou Meia-Sombra",
-        "watering_frequency": "A cada 10 a 15 dias",
-        "care_tip": None,
+        "maximum_temperature": 30,
+        "luminosity": "Baixa luminosidade",
+        "watering_frequency": "Regue somente quando o solo estiver seco",
+        "care_tip": "Evite o excesso de água e mantenha em vaso com boa drenagem.",
     },
     {
         "name": "Dinheiro-em-penca",
@@ -65,8 +53,21 @@ def main():
                 .first()
             )
 
-            if not species_exists:
+            if species_exists:
+                for field, value in data.items():
+                    setattr(species_exists, field, value)
+            else:
                 db.add(Species(**data))
+
+        db.flush()
+
+        zamioculca = db.query(Species).filter(Species.name == "Zamioculca").first()
+        anturio = db.query(Species).filter(Species.name == "Antúrio").first()
+        if anturio and zamioculca:
+            db.query(Plant).filter(Plant.species_id == anturio.id).update(
+                {Plant.species_id: zamioculca.id},
+            )
+            db.delete(anturio)
 
         db.commit()
         print("Espécies de referência cadastradas com sucesso.")

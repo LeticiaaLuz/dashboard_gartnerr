@@ -13,6 +13,7 @@ type HistoryReading = {
 
 type ChartPoint = {
   label: string
+  timestamp: string
   value: number
 }
 
@@ -41,8 +42,10 @@ function HistoryChart({ title, unit, points, color }: ChartProps) {
 
   const width = 520
   const height = 170
-  const paddingX = 28
+  const paddingLeft = 48
+  const paddingRight = 18
   const paddingY = 20
+  const paddingBottom = 28
   const values = points.map((point) => point.value)
   const minValue = Math.min(...values)
   const maxValue = Math.max(...values)
@@ -50,17 +53,21 @@ function HistoryChart({ title, unit, points, color }: ChartProps) {
 
   const chartPoints = points.map((point, index) => {
     const x =
-      paddingX + (index * (width - paddingX * 2)) / Math.max(points.length - 1, 1)
+      paddingLeft +
+      (index * (width - paddingLeft - paddingRight)) /
+        Math.max(points.length - 1, 1)
     const y =
       height -
-      paddingY -
-      ((point.value - minValue) / range) * (height - paddingY * 2)
+      paddingBottom -
+      ((point.value - minValue) / range) * (height - paddingY - paddingBottom)
 
     return { x, y, ...point }
   })
 
   const linePoints = chartPoints.map((point) => `${point.x},${point.y}`).join(' ')
-  const baseline = height - paddingY
+  const baseline = height - paddingBottom
+  const chartRight = width - paddingRight
+  const axisValues = [maxValue, minValue + range / 2, minValue]
   const areaPoints = [
     `${chartPoints[0].x},${baseline}`,
     linePoints,
@@ -93,17 +100,26 @@ function HistoryChart({ title, unit, points, color }: ChartProps) {
           </linearGradient>
         </defs>
 
-        {[0.25, 0.5, 0.75].map((position) => (
-          <line
-            key={position}
-            x1={paddingX}
-            x2={width - paddingX}
-            y1={height * position}
-            y2={height * position}
-            stroke="#e6edf4"
-            strokeWidth="1"
-          />
-        ))}
+        {axisValues.map((value, index) => {
+          const y = paddingY + (index * (baseline - paddingY)) / 2
+
+          return (
+            <g key={value}>
+              <line x1={paddingLeft} x2={chartRight} y1={y} y2={y} stroke="#e6edf4" strokeWidth="1" />
+              <text x={paddingLeft - 8} y={y + 4} textAnchor="end" className="history-axis-label">
+                {formatValue(value, unit)}
+              </text>
+            </g>
+          )
+        })}
+
+        {[0, 0.25, 0.5, 0.75, 1].map((position) => {
+          const x = paddingLeft + position * (chartRight - paddingLeft)
+          return <line key={position} x1={x} x2={x} y1={paddingY} y2={baseline} stroke="#edf1f5" strokeWidth="1" />
+        })}
+
+        <line x1={paddingLeft} x2={paddingLeft} y1={paddingY} y2={baseline} stroke="#b6c2d0" />
+        <line x1={paddingLeft} x2={chartRight} y1={baseline} y2={baseline} stroke="#b6c2d0" />
 
         <polygon fill={`url(#${gradientId})`} points={areaPoints} />
         <polyline
@@ -116,23 +132,44 @@ function HistoryChart({ title, unit, points, color }: ChartProps) {
         />
 
         {chartPoints.map((point, index) => (
-          <circle
-            key={`${point.label}-${index}`}
-            cx={point.x}
-            cy={point.y}
-            fill="#ffffff"
-            r={index === chartPoints.length - 1 ? 5 : 3.5}
-            stroke={color}
-            strokeWidth="3"
-          />
+          <g key={`${point.timestamp}-${index}`}>
+            <title>{`${point.timestamp} · ${formatValue(point.value, unit)}`}</title>
+            <circle
+              cx={point.x}
+              cy={point.y}
+              fill="#ffffff"
+              r={index === chartPoints.length - 1 ? 5 : 3.5}
+              stroke={color}
+              strokeWidth="3"
+              aria-label={`${point.timestamp}: ${formatValue(point.value, unit)}`}
+            />
+          </g>
         ))}
-      </svg>
 
-      <div className="history-chart-labels">
-        {chartPoints.map((point, index) => (
-          <span key={`${point.label}-${index}`}>{point.label}</span>
-        ))}
-      </div>
+        {chartPoints.map((point, index) => {
+          const labelInterval = Math.ceil(chartPoints.length / 4)
+          const shouldShowLabel =
+            index === 0 ||
+            index === chartPoints.length - 1 ||
+            index % labelInterval === 0
+
+          if (!shouldShowLabel) {
+            return null
+          }
+
+          return (
+            <text
+              key={`time-${point.timestamp}-${index}`}
+              x={point.x}
+              y={height - 7}
+              textAnchor="middle"
+              className="history-time-label"
+            >
+              {point.label}
+            </text>
+          )
+        })}
+      </svg>
     </section>
   )
 }
@@ -182,6 +219,10 @@ function PlantHistoryModal({
         {
           value,
           label: new Date(reading.recorded_at).toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          timestamp: new Date(reading.recorded_at).toLocaleTimeString('pt-BR', {
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
