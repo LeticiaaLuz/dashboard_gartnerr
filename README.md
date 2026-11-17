@@ -6,13 +6,15 @@ Projeto acadêmico de Engenharia para monitorar plantas em vasos conectados. O s
 
 ## Funcionalidades atuais
 
-- Catálogo de plantas de referência: Jiboia, Antúrio, Zamioculca e Dinheiro-em-penca.
+- Catálogo de plantas de referência: Jiboia, Zamioculca e Dinheiro-em-penca.
 - Cadastro de plantas associadas a um `device_id` de vaso.
 - Registro de leituras de temperatura, umidade do solo, luz, reservatório, necessidade de água e bomba.
 - Alerta visual no dashboard quando o reservatório estiver em 15% ou menos.
 - Alerta visual de dispositivo offline após três minutos sem uma nova leitura.
 - Dashboard com plantas reais registradas no banco.
-- Modal de detalhes da planta e modal de histórico com gráficos simples.
+- Modal de detalhes da planta e histórico com gráficos de temperatura, umidade e reservatório.
+- Horários alinhados aos pontos no eixo X e detalhe de hora, minuto e segundo ao passar o mouse sobre cada ponto do gráfico.
+- Histórico persistido mesmo quando o dispositivo fica temporariamente desconectado.
 - Banco SQLite local, sem necessidade de instalar um servidor de banco de dados.
 
 ## Arquitetura
@@ -20,7 +22,7 @@ Projeto acadêmico de Engenharia para monitorar plantas em vasos conectados. O s
 ```text
 MCU + sensores
       │
-      │  MQTT (integração em definição)
+      │  MQTT
       ▼
 FastAPI + SQLAlchemy + SQLite
       │  API REST
@@ -35,7 +37,7 @@ React + Vite (dashboard)
 | Backend | Python, FastAPI e Uvicorn |
 | Persistência | SQLAlchemy e SQLite |
 | Frontend | React, TypeScript e Vite |
-| Comunicação IoT | MQTT (planejada; ainda não conectada ao código) |
+| Comunicação IoT | MQTT via receptor Python (`mqtt_receiver.py`) |
 | Versionamento | Git e GitHub |
 
 ## Pré-requisitos
@@ -144,8 +146,7 @@ Abra o dashboard em <http://localhost:5173>.
 | Espécie | Nome científico | Umidade ideal | Temperatura ideal |
 | --- | --- | --- | --- |
 | Jiboia | *Epipremnum aureum* | 40%–60% | 18°C–30°C |
-| Antúrio | *Anthurium andraeanum* | 60%–80% | 18°C–28°C |
-| Zamioculca | *Zamioculcas zamiifolia* | 20%–40% | 18°C–32°C |
+| Zamioculca | *Zamioculcas zamiifolia* | 40%–70% | 18°C–30°C |
 | Dinheiro-em-penca | *Callisia repens* | 60%–75% | 18°C–30°C |
 
 ## Rotas principais da API
@@ -156,6 +157,8 @@ Abra o dashboard em <http://localhost:5173>.
 | `GET` | `/species` | Lista as plantas de referência |
 | `POST` | `/plants` | Cadastra uma planta |
 | `GET` | `/plants` | Lista plantas cadastradas |
+| `PUT` | `/plants/{plant_id}` | Atualiza os dados de uma planta |
+| `DELETE` | `/plants/{plant_id}` | Exclui uma planta e seu histórico |
 | `POST` | `/plants/{plant_id}/readings` | Salva uma leitura do MCU ou de teste |
 | `GET` | `/plants/{plant_id}/readings` | Retorna o histórico de uma planta |
 | `GET` | `/dashboard/plants` | Retorna plantas, espécie e última leitura para o dashboard |
@@ -218,7 +221,39 @@ O resultado esperado é `✓ built`.
 
 ## MQTT e integração com o MCU
 
-A integração MQTT ainda está em definição. As decisões já tomadas são:
+O receptor MQTT está disponível em `backend/mqtt_receiver.py`. Ele assina o tópico `rega/plantas/leituras`, identifica a planta pelo MAC enviado no campo `id` e cria uma leitura pela API.
+
+Para executá-lo, com o backend em funcionamento, instale as dependências adicionais e rode:
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python -m pip install paho-mqtt requests
+python mqtt_receiver.py
+```
+
+O ESP deve publicar uma mensagem JSON no tópico configurado, usando o próprio MAC no campo `id`. O receptor aceita o MAC com ou sem os separadores `:` e `-`.
+
+```json
+{
+  "id": "AABBCCDDEEFF",
+  "soil_moisture": 49,
+  "temperature": 24.3,
+  "light_on": true,
+  "reservoir_level": 60,
+  "needs_water": false,
+  "pump_on": false,
+  "reservoir_empty": false
+}
+```
+
+### Persistência e reconexão
+
+- As leituras são gravadas no SQLite em `backend/plantas.db`; desconectar e reconectar o mesmo ESP não apaga o histórico.
+- O painel exibe o dispositivo como offline após três minutos sem uma leitura. Assim que uma nova leitura chega, o alerta é removido e ela entra no histórico existente.
+- Para preservar o vínculo, o `device_id` cadastrado na planta deve corresponder ao mesmo MAC enviado pelo ESP. Caso o dispositivo seja substituído por outro MAC, atualize o `device_id` da planta.
+
+As decisões de operação são:
 
 - O MCU decide localmente quando ligar e desligar a bomba.
 - O usuário não poderá acionar a bomba pelo dashboard.
@@ -228,7 +263,7 @@ A integração MQTT ainda está em definição. As decisões já tomadas são:
 - O dashboard marca o dispositivo como offline após três minutos sem leituras e remove o aviso assim que uma nova leitura for recebida.
 - O MCU enviará os estados de temperatura, umidade, luz, reservatório, necessidade de água e bomba.
 
-Antes da implementação MQTT, ainda é necessário definir:
+Ainda é necessário definir:
 
 1. O `device_id` definitivo de cada vaso;
 2. Os tópicos MQTT e se as variáveis serão publicadas em uma mensagem JSON única ou em tópicos separados;
